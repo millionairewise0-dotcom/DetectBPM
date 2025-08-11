@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detector de BPM</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Detector de BPM com Waveform</h1>
+        <p>Selecione um arquivo de áudio para começar.</p>
+        
+        <div id="waveform"></div>
+        
+        <div class="controls">
+            <input type="file" id="file-input" accept="audio/*" />
+            <label for="file-input" class="file-label">Escolher Arquivo</label>
+        </div>
+        
+        <div id="loading" class="hidden">Analisando...</div>
+        <div id="bpm-result" class="hidden"></div>
+    </div>
+
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+    <script src="https://unpkg.com/web-audio-beat-detector@8.2.30/build/web-audio-beat-detector.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
