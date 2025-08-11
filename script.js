@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Elementos da página
+    // --- Elementos da página (sem alterações) ---
     const fileInput = document.getElementById('file-input');
     const fileLabel = document.getElementById('file-label');
     const audioControls = document.getElementById('audio-controls');
@@ -8,9 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingDiv = document.getElementById('loading');
     const bpmResultDiv = document.getElementById('bpm-result');
     
-    let audioBuffer = null; // Variável para guardar o áudio decodificado
+    let audioBuffer = null;
 
-    // Inicializa o WaveSurfer
+    // --- Configuração do WaveSurfer (sem alterações) ---
     const wavesurfer = WaveSurfer.create({
         container: '#waveform',
         waveColor: '#b3b3b3',
@@ -21,59 +21,89 @@ document.addEventListener('DOMContentLoaded', () => {
         barRadius: 3
     });
 
-    // Evento de seleção de arquivo
+    // --- Carregamento do arquivo e do WaveSurfer (sem alterações) ---
     fileInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Reseta a interface para um novo arquivo
         bpmResultDiv.classList.add('hidden');
         audioControls.classList.add('hidden');
         loadingDiv.textContent = 'Carregando áudio...';
         loadingDiv.classList.remove('hidden');
 
-        // Carrega o áudio no WaveSurfer
         wavesurfer.load(URL.createObjectURL(file));
     });
 
-    // MUDANÇA CRÍTICA: Evento 'load' do wavesurfer
-    // É disparado QUANDO o áudio é carregado e decodificado.
     wavesurfer.on('load', (buffer) => {
-        audioBuffer = buffer; // Salva o buffer do áudio
-        loadingDiv.classList.add('hidden'); // Esconde o "Carregando..."
-        audioControls.classList.remove('hidden'); // Mostra os botões "Play" e "Analisar"
-        fileLabel.textContent = "Escolher outro arquivo"; // Atualiza o texto do botão
+        audioBuffer = buffer;
+        loadingDiv.classList.add('hidden');
+        audioControls.classList.remove('hidden');
+        fileLabel.textContent = "Escolher outro arquivo";
     });
 
-    // NOVO: Evento de clique para tocar/pausar
     playBtn.addEventListener('click', () => {
         wavesurfer.playPause();
     });
 
-    // NOVO: Evento de clique para analisar o BPM
-    analyzeBtn.addEventListener('click', async () => {
-        if (!audioBuffer) return; // Garante que o áudio foi carregado
+    // --- LÓGICA DE ANÁLISE DE BPM TOTALMENTE REFEITA COM AUBIO.JS ---
+    analyzeBtn.addEventListener('click', () => {
+        if (!audioBuffer) return;
 
+        // Prepara a interface para a análise
         loadingDiv.textContent = 'Analisando BPM...';
         loadingDiv.classList.remove('hidden');
         bpmResultDiv.classList.add('hidden');
-        audioControls.classList.add('hidden'); // Esconde botões durante a análise
+        audioControls.classList.add('hidden');
 
-        try {
-            // A análise agora é chamada aqui
-            const { tempo } = await webAudioBeatDetector.analyze(audioBuffer);
-            const bpm = Math.round(tempo);
-            
-            bpmResultDiv.innerHTML = `BPM: <span>${bpm}</span>`;
-            bpmResultDiv.classList.remove('hidden');
-        } catch (error) {
-            console.error('Erro ao analisar o BPM:', error);
-            bpmResultDiv.innerHTML = 'Não foi possível detectar o BPM.';
-            bpmResultDiv.classList.remove('hidden');
-        } finally {
-            // Garante que a interface seja restaurada após a análise
-            loadingDiv.classList.add('hidden');
-            audioControls.classList.remove('hidden');
-        }
+        // A Aubio.js usa Promises, então encapsulamos em uma função async
+        const runAnalysis = async () => {
+            try {
+                // 1. Inicia o módulo da Aubio.js (ela usa WebAssembly)
+                const aubio = await Aubio(); 
+                
+                // 2. Define o tamanho dos blocos de áudio que vamos analisar
+                const bufferSize = 4096;
+                const hopSize = 512;
+
+                // 3. Cria o objeto detector de batidas (Tempo)
+                const tempo = new aubio.Tempo(bufferSize, hopSize, audioBuffer.sampleRate);
+                
+                // 4. Pega os dados do canal esquerdo do áudio
+                const channelData = audioBuffer.getChannelData(0);
+
+                // 5. Analisa o áudio em pequenos pedaços (blocos)
+                let currentHop = 0;
+                const beats = [];
+                while (currentHop + hopSize < channelData.length) {
+                    const segment = channelData.slice(currentHop, currentHop + hopSize);
+                    const isBeat = tempo.do(segment); // Processa o segmento
+                    if (isBeat) {
+                        beats.push(tempo.getLastMs() / 1000); // Guarda a posição da batida
+                    }
+                    currentHop += hopSize;
+                }
+
+                if (tempo.getBpm() === 0 || beats.length < 5) {
+                   throw new Error("Não foram encontradas batidas suficientes para uma análise confiável.");
+                }
+
+                // 6. Pega o resultado final do BPM
+                const bpm = Math.round(tempo.getBpm());
+                bpmResultDiv.innerHTML = `BPM: <span>${bpm}</span>`;
+                bpmResultDiv.classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Erro ao analisar com Aubio.js:', error);
+                bpmResultDiv.innerHTML = 'Não foi possível detectar o BPM.';
+                bpmResultDiv.classList.remove('hidden');
+            } finally {
+                // Restaura a interface após a análise
+                loadingDiv.classList.add('hidden');
+                audioControls.classList.remove('hidden');
+            }
+        };
+
+        // Roda a função de análise que acabamos de criar
+        runAnalysis();
     });
 });
