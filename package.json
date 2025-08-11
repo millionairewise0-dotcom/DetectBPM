@@ -1,0 +1,11 @@
+{
+  "name": "bpm-detector-backend",
+  "version": "1.0.0",
+  "description": "Função para detectar BPM de vídeos do YouTube.",
+  "main": "api/detect-bpm.js",
+  "dependencies": {
+    "music-tempo": "^1.0.2",
+    "ytdl-core": "^4.11.5",
+    "fluent-ffmpeg": "^2.1.2"
+  }
+}
