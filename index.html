@@ -15,10 +15,15 @@
         
         <div class="controls">
             <input type="file" id="file-input" accept="audio/*" />
-            <label for="file-input" class="file-label">Escolher Arquivo</label>
+            <label for="file-input" class="file-label" id="file-label">Escolher Arquivo</label>
+            
+            <div id="audio-controls" class="hidden">
+                <button id="play-btn">Play / Pause</button>
+                <button id="analyze-btn">Analisar BPM</button>
+            </div>
         </div>
         
-        <div id="loading" class="hidden">Analisando...</div>
+        <div id="loading" class="hidden">Analisando BPM...</div>
         <div id="bpm-result" class="hidden"></div>
     </div>
 
