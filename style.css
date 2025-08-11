@@ -46,11 +46,35 @@ p {
     border-radius: 500px;
     cursor: pointer;
     font-weight: bold;
+    display: inline-block;
+    margin-bottom: 1rem;
     transition: background-color 0.3s;
 }
 
 .file-label:hover {
     background-color: #1ed760;
+}
+
+/* ESTILOS PARA OS NOVOS BOTÕES */
+#audio-controls {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+#audio-controls button {
+    background-color: #535353;
+    color: #ffffff;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 500px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+#audio-controls button:hover {
+    background-color: #737373;
 }
 
 #loading, #bpm-result {
