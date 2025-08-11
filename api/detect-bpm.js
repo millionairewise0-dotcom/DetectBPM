@@ -27,23 +27,40 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Cria um caminho para um arquivo temporário onde o áudio será salvo
     const tempFilePath = path.join(os.tmpdir(), `audio-${Date.now()}.mp3`);
-    
-    // Baixa o áudio do YouTube
+    const writer = fs.createWriteStream(tempFilePath);
     const audioStream = ytdl(youtubeUrl, { quality: 'lowestaudio' });
 
-    // Salva o stream de áudio no arquivo temporário
-    const writer = fs.createWriteStream(tempFilePath);
+    // --- INÍCIO DA CORREÇÃO ---
+    // Limita o download para 5MB para evitar o tempo limite da Vercel
+    const MAX_SIZE_MB = 5;
+    const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+    let receivedBytes = 0;
+
+    audioStream.on('data', (chunk) => {
+      receivedBytes += chunk.length;
+      if (receivedBytes > MAX_SIZE_BYTES) {
+        console.log(`Limite de ${MAX_SIZE_MB}MB atingido, parando o download.`);
+        audioStream.destroy(); // Para o download
+      }
+    });
+    // --- FIM DA CORREÇÃO ---
+    
     audioStream.pipe(writer);
 
     await new Promise((resolve, reject) => {
-      writer.on('finish', resolve);
+      // O evento 'close' é acionado quando o stream é destruído ou finalizado
+      writer.on('close', resolve); 
       writer.on('error', reject);
     });
 
     // Lê o arquivo de áudio salvo para análise
     const audioData = fs.readFileSync(tempFilePath);
+    
+    if (audioData.length === 0) {
+        throw new Error("Arquivo de áudio está vazio, possivelmente devido a um erro no download.");
+    }
+
     const tempo = new MusicTempo(audioData);
     
     // Remove o arquivo temporário após a análise
@@ -54,6 +71,6 @@ module.exports = async (req, res) => {
 
   } catch (error) {
     console.error('Erro no processamento:', error);
-    res.status(500).json({ error: 'Falha ao analisar o áudio.' });
+    res.status(500).json({ error: 'Falha ao analisar o áudio. Tente uma música diferente.' });
   }
 };
