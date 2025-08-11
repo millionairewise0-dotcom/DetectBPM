@@ -1,6 +1,5 @@
-// Importa as bibliotecas necessárias
 const ytdl = require('ytdl-core');
-const MusicTempo = require('music-tempo');
+const { bpm } = require('bpm-detective');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -31,7 +30,6 @@ module.exports = async (req, res) => {
     const writer = fs.createWriteStream(tempFilePath);
     const audioStream = ytdl(youtubeUrl, { quality: 'lowestaudio' });
 
-    // --- INÍCIO DA CORREÇÃO ---
     // Limita o download para 5MB para evitar o tempo limite da Vercel
     const MAX_SIZE_MB = 5;
     const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
@@ -44,33 +42,31 @@ module.exports = async (req, res) => {
         audioStream.destroy(); // Para o download
       }
     });
-    // --- FIM DA CORREÇÃO ---
-    
-    audioStream.pipe(writer);
 
     await new Promise((resolve, reject) => {
+      audioStream.pipe(writer);
       // O evento 'close' é acionado quando o stream é destruído ou finalizado
       writer.on('close', resolve); 
       writer.on('error', reject);
     });
 
-    // Lê o arquivo de áudio salvo para análise
-    const audioData = fs.readFileSync(tempFilePath);
+    const fileBuffer = fs.readFileSync(tempFilePath);
     
-    if (audioData.length === 0) {
+    if (fileBuffer.length === 0) {
         throw new Error("Arquivo de áudio está vazio, possivelmente devido a um erro no download.");
     }
 
-    const tempo = new MusicTempo(audioData);
+    // Usa a nova biblioteca para detectar o BPM
+    const bpmValue = await bpm(fileBuffer);
     
-    // Remove o arquivo temporário após a análise
+    // Remove o arquivo temporário
     fs.unlinkSync(tempFilePath);
 
-    // Envia o BPM encontrado de volta para o frontend
-    res.status(200).json({ bpm: tempo.tempo });
+    // Envia o resultado
+    res.status(200).json({ bpm: bpmValue });
 
   } catch (error) {
     console.error('Erro no processamento:', error);
-    res.status(500).json({ error: 'Falha ao analisar o áudio. Tente uma música diferente.' });
+    res.status(500).json({ error: 'Falha ao analisar o áudio. A música pode não ter uma batida clara ou o formato não é suportado.' });
   }
 };
