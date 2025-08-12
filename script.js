@@ -1,5 +1,7 @@
+// script.js - VERSÃO FINAL
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Elementos da página (sem alterações) ---
+    console.log("Página carregada. Detector de BPM (versão final) iniciado.");
+
     const fileInput = document.getElementById('file-input');
     const fileLabel = document.getElementById('file-label');
     const audioControls = document.getElementById('audio-controls');
@@ -9,8 +11,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const bpmResultDiv = document.getElementById('bpm-result');
     
     let audioBuffer = null;
+    
+    // --- CORREÇÃO PRINCIPAL: Esperar a biblioteca Aubio carregar ---
+    // Botão de análise começa desativado.
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = 'Carregando Análise...';
 
-    // --- Configuração do WaveSurfer (sem alterações) ---
+    // Função que verifica se a biblioteca Aubio.js já está pronta
+    const waitForAubio = setInterval(() => {
+        if (window.Aubio) {
+            console.log("Biblioteca Aubio.js carregada e pronta!");
+            clearInterval(waitForAubio); // Para a verificação
+            analyzeBtn.disabled = false; // Ativa o botão
+            analyzeBtn.textContent = 'Analisar BPM';
+        } else {
+            console.log("Aguardando biblioteca Aubio.js...");
+        }
+    }, 200); // Verifica a cada 200ms
+
+    // -----------------------------------------------------------------
+
     const wavesurfer = WaveSurfer.create({
         container: '#waveform',
         waveColor: '#b3b3b3',
@@ -21,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
         barRadius: 3
     });
 
-    // --- Carregamento do arquivo e do WaveSurfer (sem alterações) ---
     fileInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -35,75 +54,69 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     wavesurfer.on('load', (buffer) => {
+        console.log("WaveSurfer carregou e decodificou o áudio com sucesso.");
         audioBuffer = buffer;
         loadingDiv.classList.add('hidden');
         audioControls.classList.remove('hidden');
         fileLabel.textContent = "Escolher outro arquivo";
     });
 
+    wavesurfer.on('error', (err) => {
+        console.error("Erro no WaveSurfer:", err);
+    });
+
     playBtn.addEventListener('click', () => {
         wavesurfer.playPause();
     });
 
-    // --- LÓGICA DE ANÁLISE DE BPM TOTALMENTE REFEITA COM AUBIO.JS ---
     analyzeBtn.addEventListener('click', () => {
         if (!audioBuffer) return;
 
-        // Prepara a interface para a análise
         loadingDiv.textContent = 'Analisando BPM...';
         loadingDiv.classList.remove('hidden');
         bpmResultDiv.classList.add('hidden');
         audioControls.classList.add('hidden');
-
-        // A Aubio.js usa Promises, então encapsulamos em uma função async
+        
         const runAnalysis = async () => {
             try {
-                // 1. Inicia o módulo da Aubio.js (ela usa WebAssembly)
-                const aubio = await Aubio(); 
+                // Agora, quando este código rodar, temos certeza que 'Aubio' existe
+                const aubio = await Aubio();
                 
-                // 2. Define o tamanho dos blocos de áudio que vamos analisar
                 const bufferSize = 4096;
                 const hopSize = 512;
-
-                // 3. Cria o objeto detector de batidas (Tempo)
                 const tempo = new aubio.Tempo(bufferSize, hopSize, audioBuffer.sampleRate);
-                
-                // 4. Pega os dados do canal esquerdo do áudio
                 const channelData = audioBuffer.getChannelData(0);
 
-                // 5. Analisa o áudio em pequenos pedaços (blocos)
                 let currentHop = 0;
                 const beats = [];
                 while (currentHop + hopSize < channelData.length) {
                     const segment = channelData.slice(currentHop, currentHop + hopSize);
-                    const isBeat = tempo.do(segment); // Processa o segmento
+                    const isBeat = tempo.do(segment);
                     if (isBeat) {
-                        beats.push(tempo.getLastMs() / 1000); // Guarda a posição da batida
+                        beats.push(tempo.getLastMs());
                     }
                     currentHop += hopSize;
                 }
-
-                if (tempo.getBpm() === 0 || beats.length < 5) {
-                   throw new Error("Não foram encontradas batidas suficientes para uma análise confiável.");
+                
+                const foundBpm = tempo.getBpm();
+                if (foundBpm === 0 || beats.length < 5) {
+                   throw new Error(`Análise falhou: Batidas insuficientes (${beats.length}) ou BPM zerado (${foundBpm}).`);
                 }
 
-                // 6. Pega o resultado final do BPM
-                const bpm = Math.round(tempo.getBpm());
+                const bpm = Math.round(foundBpm);
                 bpmResultDiv.innerHTML = `BPM: <span>${bpm}</span>`;
                 bpmResultDiv.classList.remove('hidden');
 
             } catch (error) {
-                console.error('Erro ao analisar com Aubio.js:', error);
+                console.error("ERRO DURANTE A ANÁLISE:", error);
                 bpmResultDiv.innerHTML = 'Não foi possível detectar o BPM.';
                 bpmResultDiv.classList.remove('hidden');
             } finally {
-                // Restaura a interface após a análise
                 loadingDiv.classList.add('hidden');
                 audioControls.classList.remove('hidden');
             }
         };
 
-        // Roda a função de análise que acabamos de criar
         runAnalysis();
     });
 });
